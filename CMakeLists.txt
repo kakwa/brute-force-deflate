@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 2.6)
 project (bf-deflate)
 
 # Project version (sematic versionning)
-set(bf-deflate_VERSION_MAJOR 1)
+set(bf-deflate_VERSION_MAJOR 0)
 set(bf-deflate_VERSION_MINOR 1)
 set(bf-deflate_VERSION_PATCH 0)
 
@@ -20,8 +20,8 @@ add_custom_target(tag
 
 
 # set version as a definition
-set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -DE2S_VERSION='\"${bf-deflate_VERSION}\"'")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DE2S_VERSION='\"${bf-deflate_VERSION}\"'")
+set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -DBFD_VERSION='\"${bf-deflate_VERSION}\"'")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBFD_VERSION='\"${bf-deflate_VERSION}\"'")
 
 # Options
 option(DEBUG     "compile with debug symbol"    OFF)
