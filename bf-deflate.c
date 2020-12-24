@@ -6,8 +6,12 @@
 
 #include <argp.h>
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <zlib.h>
 
 #if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
@@ -113,12 +117,14 @@ void zerr(int ret) {
   }
 }
 
-int infall(FILE *in, FILE *out) {
+int infall(FILE *in, char *outdir) {
   long read = 0;
   int ret = 99;
   int ret2 = 0;
   long offset = 0;
   int counter = 0;
+  return 0;
+  FILE *out = NULL;
   while (ret != Z_OK || ret2 == 0) {
     ret2 = fseek(in, offset, SEEK_SET);
     offset += 1;
@@ -182,15 +188,44 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
+int is_dir(const char *path) {
+  struct stat statbuf;
+  if (stat(path, &statbuf) != 0)
+    return 0;
+  return S_ISDIR(statbuf.st_mode);
+}
+
 int main(int argc, char **argv) {
   struct arguments args;
   args.input = NULL;
   args.output = NULL;
   argp_parse(&argp, argc, argv, 0, 0, &args);
 
-  /* avoid end-of-line conversions */
-  SET_BINARY_MODE(stdin);
-  SET_BINARY_MODE(stdout);
+  if (args.input == NULL) {
+    fprintf(stderr, "error: no -i <input file> arg\n");
+    return EXIT_FAILURE;
+  }
 
-  return infall(stdin, stdout);
+  if (args.output == NULL) {
+    fprintf(stderr, "error: no -o <output dir> arg\n");
+    return EXIT_FAILURE;
+  }
+  FILE *in = fopen(args.input, "r");
+  if (in == NULL) {
+    fprintf(stderr, "error: failed to open '%s'\n", args.input);
+    return EXIT_FAILURE;
+  }
+
+  int res = mkdir(args.output, 0700);
+  if (res != 0 && !is_dir(args.output)) {
+    fprintf(stderr, "error: failed to create output '%s' dir: %s\n",
+            args.output, strerror(errno));
+    return EXIT_FAILURE;
+  } else {
+  }
+  /* avoid end-of-line conversions */
+  // SET_BINARY_MODE(stdin);
+  // SET_BINARY_MODE(stdout);
+
+  return infall(in, args.output);
 }
