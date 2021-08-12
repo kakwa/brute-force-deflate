@@ -4,6 +4,8 @@
    Not copyrighted -- provided to the public domain
    Version 1.4  11 December 2005  Mark Adler */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <argp.h>
 #include <assert.h>
 #include <errno.h>
@@ -117,34 +119,85 @@ void zerr(int ret) {
   }
 }
 
-int infall(FILE *in, char *outdir) {
-  long read = 0;
-  int ret = 99;
-  int ret2 = 0;
-  long offset = 0;
-  int counter = 0;
+int temp_file(char *dir, char **out) {
+  FILE *stream;
+  size_t len;
+  stream = open_memstream(out, &len);
+  fprintf(stream, "%s/bf-XXXXXXX", dir);
+  fflush(stream);
+  fclose(stream);
+  return mkstemp(*out);
+}
+
+int filename(char *dir, long start, long end, char **out) {
+  FILE *stream;
+  size_t len;
+  stream = open_memstream(out, &len);
+  fprintf(stream, "%s/%010lX-%010lX", dir, start, end);
+  fflush(stream);
+  fclose(stream);
   return 0;
+}
+
+int infall(FILE *in, char *outdir) {
+  // number of in bytes read in the last
+  // successful inflate call
+  long read = 0;
+  // return code for inf() (inflate)
+  int ret_inf = 99;
+  // return code for seek()
+  int ret_seek = 0;
+  // offset in the input file
+  long offset = 0;
+  // previous offset
+  long old_offset = 0;
+
+  // Recover the size of the input
+  int fd = fileno(in);
+  struct stat buf;
+  fstat(fd, &buf);
+  off_t size = buf.st_size;
+
+  char *tmp_file_name;
+  char *file_name;
+  int tmp_file_fd;
   FILE *out = NULL;
-  while (ret != Z_OK || ret2 == 0) {
-    ret2 = fseek(in, offset, SEEK_SET);
+  tmp_file_fd = temp_file(outdir, &tmp_file_name);
+  out = fdopen(tmp_file_fd, "w+");
+
+  while (ret_inf != Z_OK || ret_seek == 0) {
+
+    ret_seek = fseek(in, offset, SEEK_SET);
     offset += 1;
-    counter += 1;
-    ret = inf(in, out, &read);
+    ret_inf = inf(in, out, &read);
     // if (ret != Z_OK)
     //    zerr(ret);
-    if (ret == Z_OK) {
-      fprintf(stderr, "offset       %ld %lX\n", offset, offset);
-      fprintf(stderr, "return seek  %d\n", ret2);
+    if (ret_inf == Z_OK) {
+      fclose(out);
+      fprintf(stderr, "return seek  %d\n", ret_seek);
       fprintf(stderr, "cur position %ld\n", ftell(in));
       fprintf(stderr, "read  %ld\n", read);
+      old_offset = offset;
       offset += read;
-      counter = 0;
+      fprintf(stderr, "offset  %lX -> %lX\n", old_offset, offset);
+      filename(outdir, old_offset, offset, &file_name);
+      rename(tmp_file_name, file_name);
+      free(file_name);
+      free(tmp_file_name);
+      if (offset < size) {
+        tmp_file_fd = temp_file(outdir, &tmp_file_name);
+        out = fdopen(tmp_file_fd, "w+");
+      } else {
+        break;
+      }
     }
-    if (counter == 100) {
+    // If we are beyond the file
+    // stop
+    if (offset > size) {
       break;
     }
   }
-  return ret;
+  return ret_inf;
 }
 
 const char *argp_program_version = BFD_VERSION;
